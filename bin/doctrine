@@ -1,0 +1,72 @@
+<?php
+/**
+ * Refuse to run oil when called from php-cgi !
+ */
+if (substr(php_sapi_name(), 0, 3) == 'cgi')
+{
+	die("The use of doctrine console is not supported when running php-cgi. Doctrine console needs php-cli to function!\n\n");
+}
+
+/**
+ * Set error reporting and display errors settings.  You will want to change these when in production.
+ */
+error_reporting(-1);
+ini_set('display_errors', 1);
+
+/**
+ * Website document root
+ */
+define('DOCROOT', realpath(__DIR__.DIRECTORY_SEPARATOR.'../../../../'));
+
+/**
+ * Path to the application directory.
+ */
+define('APPPATH', realpath(DOCROOT.'/app/').DIRECTORY_SEPARATOR);
+
+/**
+ * Path to the default packages directory.
+ */
+define('PKGPATH', realpath(DOCROOT.'/fuel/packages/').DIRECTORY_SEPARATOR);
+
+/**
+ * The path to the framework core.
+ */
+define('COREPATH', realpath(DOCROOT.'/fuel/core/').DIRECTORY_SEPARATOR);
+
+// Boot the app
+require APPPATH.'bootstrap.php';
+
+// Doctrine console
+Package::load('doctrine');
+$em = \Doctrine_Fuel::manager();
+$cli = new \Symfony\Component\Console\Application('Doctrine Command Line Interface', Doctrine\Common\Version::VERSION);
+$cli->setCatchExceptions(true);
+$helperSet = $cli->getHelperSet();
+$helperSet->set(new \Doctrine\ORM\Tools\Console\Helper\EntityManagerHelper($em), 'em');
+$helperSet->set(new \Doctrine\DBAL\Tools\Console\Helper\ConnectionHelper($em->getConnection()), 'db');
+
+$cli->addCommands(array(
+	// DBAL Commands
+	new \Doctrine\DBAL\Tools\Console\Command\RunSqlCommand(),
+	new \Doctrine\DBAL\Tools\Console\Command\ImportCommand(),
+
+	// ORM Commands
+	new \Doctrine\ORM\Tools\Console\Command\ClearCache\MetadataCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\ClearCache\ResultCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\ClearCache\QueryCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\SchemaTool\CreateCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\SchemaTool\UpdateCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\SchemaTool\DropCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\EnsureProductionSettingsCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\ConvertDoctrine1SchemaCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\GenerateRepositoriesCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\GenerateEntitiesCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\GenerateProxiesCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\ConvertMappingCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\RunDqlCommand(),
+	new \Doctrine\ORM\Tools\Console\Command\ValidateSchemaCommand(),
+));
+
+$cli->run();
+
+/* End of file doctrine */
