@@ -27,6 +27,9 @@ class Doctrine_Fuel
 	protected static $_managers;
 
 	/** @var array */
+	protected static $_connections;
+
+	/** @var array */
 	protected static $settings;
 
 	/**
@@ -55,22 +58,23 @@ class Doctrine_Fuel
 			'yaml'=>'YamlDriver'
 		);
 
-
 	/**
 	 * Read configuration and set up EntityManager singleton
 	 */
 	public static function _init()
 	{
-		static::$settings = \Config::load('doctrine2', true);
+		\Config::load('doctrine', true);
+		static::$settings = \Config::get('doctrine');
 	}
-
 
 	public static function _init_manager($connection)
 	{
 		$settings = static::$settings;
 
-		if (!isset($settings[$connection]))
+		if ( ! isset($settings[$connection]))
+		{
 			throw new Exception('No connection configuration for '.$connection);
+		}
 
 		$config = new \Doctrine\ORM\Configuration();
 		$cache = static::_init_cache();
@@ -87,9 +91,27 @@ class Doctrine_Fuel
 
 		static::$_managers[$connection] = \Doctrine\ORM\EntityManager::create($settings[$connection]['connection'], $config);
 
-		if (!empty($settings[$connection]['profiling']))
+		if ( ! empty($settings[$connection]['profiling']))
 		{
 			static::$_managers[$connection]->getConnection()->getConfiguration()->setSQLLogger(new Logger($connection));
+		}
+	}
+
+	public static function _init_connection($connection)
+	{
+		$settings = static::$settings;
+
+		if ( ! isset($settings[$connection]))
+		{
+			throw new Exception('No connection configuration for '.$connection);
+		}
+
+		$config = new \Doctrine\DBAL\Configuration();
+		static::$_connections[$connection] = \Doctrine\DBAL\DriverManager::getConnection($settings[$connection]['connection'], $config);
+
+		if ( ! empty($settings[$connection]['profiling']))
+		{
+			static::$_connections[$connection]->getConnection()->getConfiguration()->setSQLLogger(new Logger($connection));
 		}
 	}
 
@@ -101,8 +123,10 @@ class Doctrine_Fuel
 		$type = \Arr::get(static::$settings, 'cache_driver', 'array');
 		if ($type)
 		{
-			if (!array_key_exists($type, static::$cache_drivers))
+			if ( ! array_key_exists($type, static::$cache_drivers))
+			{
 				throw new \Exception('Invalid Doctrine2 cache driver: ' . $type);
+			}
 
 			$class = '\\Doctrine\\Common\\Cache\\' . static::$cache_drivers[$type];
 			return new $class();
@@ -117,11 +141,15 @@ class Doctrine_Fuel
 	protected static function _init_metadata($config)
 	{
 		$type = \Arr::get(static::$settings, 'metadata_driver', 'annotation');
-		if (!array_key_exists($type, static::$metadata_drivers))
+		if ( ! array_key_exists($type, static::$metadata_drivers))
+		{
 			throw new \Exception('Invalid Doctrine2 metadata driver: ' . $type);
+		}
 
 		if ($type == 'annotation')
+		{
 			return $config->newDefaultAnnotationDriver(static::$settings['metadata_path']);
+		}
 
 		$class = '\\Doctrine\\ORM\\Mapping\\Driver\\' . static::$metadata_drivers[$type];
 		return new $class($settings['metadata_path']);
@@ -132,10 +160,25 @@ class Doctrine_Fuel
 	 */
 	public static function manager($connection = 'default')
 	{
-		if (!isset(static::$_managers[$connection]))
+		if ( ! isset(static::$_managers[$connection]))
+		{
 			static::_init_manager($connection);
+		}
 
 		return static::$_managers[$connection];
+	}
+
+	/**
+	 * @return Doctrine\DBAL\Connection
+	 */
+	public static function connection($connection = 'default')
+	{
+		if ( ! isset(static::$_connections[$connection]))
+		{
+			static::_init_connection($connection);
+		}
+
+		return static::$_connections[$connection];
 	}
 
 	/**
